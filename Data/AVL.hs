@@ -116,8 +116,8 @@ insert k' x' = \n -> case n of
                 l' = Node lk lx Z ll' n'
                 n' = Node  k  x Z lr  r
               False -> n' where
-                n' = Node  k  x N  l' r
-                l' = Node lk lx Z ll' r
+                n' = Node  k  x N  l'  r
+                l' = Node lk lx Z ll' lr
           -- longer left - shorter left
           P -> n' where
             n' = Node k x N l' r
@@ -167,8 +167,8 @@ insert k' x' = \n -> case n of
               GT -> case lrf of
                 -- longer left - neither right - shorter right
                 N -> n' where
-                  n' = Node  k  x N  l' r
-                  l' = Node lk lx Z ll lr'
+                  n'  = Node  k  x N  l' r
+                  l'  = Node lk lx Z ll lr'
                   lr' = shorterRight' lrk lrx lrl lrr
                 -- longer left - neither right - neither right (rotate left-right)
                 Z -> insert' lrr cont' where
