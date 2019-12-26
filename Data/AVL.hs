@@ -2,10 +2,12 @@
 
 module Data.AVL where
 
+import Prelude hiding (lookup)
+
 -- | Balance factor.
--- L : left-heavy
--- B : balanced
--- R : right-heavy
+-- N : -1
+-- Z :  0
+-- P : +1
 data BFactor = N | Z | P
   deriving Show
 
@@ -281,3 +283,27 @@ insert k' x' = \n -> case n of
           P -> n' where
             n' = Node k x P l r'
             r' = longerRight' rk rx rl rr
+
+
+
+null :: Map k a -> Bool
+null Nil = True
+null _   = False
+
+size :: Map k a -> Int
+size Nil = 0
+size (Node _ _ _ l r) = size l + size r + 1
+
+lookup :: Ord k => k -> Map k a -> Maybe a
+lookup _ Nil = Nothing
+lookup k' (Node k x _ l r) = case compare k' k of
+  LT -> lookup k' l
+  EQ -> Just x
+  GT -> lookup k' r
+
+member :: Ord k => k -> Map k a -> Bool
+member k' Nil = False
+member k' (Node k x _ l r) = case compare k' k of
+  LT -> member k' l
+  EQ -> True
+  GT -> member k' r
