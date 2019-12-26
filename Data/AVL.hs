@@ -9,7 +9,7 @@ module Data.AVL where
 data BFactor = N | Z | P
   deriving Show
 
-data Map k a = Nil | Node !k a {-# UNPACK #-} !BFactor (Map k a) (Map k a)
+data Map k a = Nil | Node !k a !BFactor (Map k a) (Map k a)
   deriving Show
 
 empty :: Map k a
@@ -127,8 +127,9 @@ insert k' x' = \n -> case n of
           l' = Node k' x' lf ll  lr
         GT -> case lf of
           -- longer left - shorter right
-          N -> shorterRight lk lx ll lr cont' where
-            cont' False l' = Node k x N l' r
+          N -> n' where
+            n' = Node k x N l' r
+            l' = shorterRight' lk lx ll lr
           -- longer left - neither right
           Z -> case lr of
             --  longer left - neither right @ Nil (rotate left-right)
@@ -165,10 +166,10 @@ insert k' x' = \n -> case n of
                 lr' = Node  k'  x' lrf lrl lrr
               GT -> case lrf of
                 -- longer left - neither right - shorter right
-                N -> shorterRight lrk lrx lrl lrr cont' where
-                  cont' False lr' = n' where
-                    n' = Node  k  x N  l' r
-                    l' = Node lk lx Z ll lr'
+                N -> n' where
+                  n' = Node  k  x N  l' r
+                  l' = Node lk lx Z ll lr'
+                  lr' = shorterRight' lrk lrx lrl lrr
                 -- longer left - neither right - neither right (rotate left-right)
                 Z -> insert' lrr cont' where
                   cont' p lrr' = case p of
