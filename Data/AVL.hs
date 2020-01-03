@@ -112,8 +112,7 @@ insert k' x' = \n -> case n of
             n' = Node k x N l' r
             l' = longerLeft' lk lx ll lr
           -- longer left - neither left (rotate right)
-          Z -> insert' ll cont' where
-            cont' p ll' = case p of
+          Z -> insert' ll $ \p ll' -> case p of
               True  -> l' where
                 l' = Node lk lx Z ll' n'
                 n' = Node  k  x Z lr  r
@@ -147,8 +146,7 @@ insert k' x' = \n -> case n of
                   l'  = Node lk lx Z ll lr'
                   lr' = longerLeft' lrk lrx lrl lrr
                 -- longer left - neither right - neither left (rotate left-right)
-                Z -> insert' lrl cont' where
-                  cont' p lrl' = case p of
+                Z -> insert' lrl $ \p lrl' -> case p of
                     True  -> lr' where
                       lr' = Node lrk lrx Z   l'   n'
                       l'  = Node  lk  lx Z  ll  lrl'
@@ -173,8 +171,7 @@ insert k' x' = \n -> case n of
                   l'  = Node lk lx Z ll lr'
                   lr' = shorterRight' lrk lrx lrl lrr
                 -- longer left - neither right - neither right (rotate left-right)
-                Z -> insert' lrr cont' where
-                  cont' p lrr' = case p of
+                Z -> insert' lrr $ \p lrr' -> case p of
                     True  -> lr' where
                       lr' = Node lrk lrx Z   l'   n'
                       l'  = Node  lk  lx N  ll  lrl
@@ -217,8 +214,7 @@ insert k' x' = \n -> case n of
                   r'  = Node rk rx Z rl' rr
                   rl' = longerLeft' rlk rlx rll rlr
                 -- longer right - neither left - neither left (rotate right-left)
-                Z -> insert' rll cont' where
-                  cont' p rll' = case p of
+                Z -> insert' rll $ \p rll' -> case p of
                     True  -> rl' where
                       rl' = Node rlk rlx Z   n'   r'
                       n'  = Node   k   x Z   l  rll'
@@ -243,8 +239,7 @@ insert k' x' = \n -> case n of
                   r'  = Node rk rx Z rl' rr
                   rl' = shorterRight' rlk rlx rll rlr
                 -- longer right - neither left - neither right (rotate right-left)
-                Z -> insert' rlr cont' where
-                  cont' p rlr' = case p of
+                Z -> insert' rlr $ \p rlr' -> case p of
                     True  -> rl' where
                       rl' = Node rlk rlx Z   n'   r'
                       n'  = Node   k   x N   l  rll
@@ -271,8 +266,7 @@ insert k' x' = \n -> case n of
             n' = Node k x P l r'
             r' = shorterRight' rk rx rl rr
           -- longer right - neither right (rotate left)
-          Z -> insert' rr cont' where
-            cont' p rr' = case p of
+          Z -> insert' rr $ \p rr' -> case p of
               True  -> r' where
                 r' = Node rk rx Z n' rr'
                 n' = Node  k  x Z l  rl
