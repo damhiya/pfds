@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Data.AVL where
 
@@ -8,10 +9,14 @@ import Prelude hiding (lookup)
 -- N : -1
 -- Z :  0
 -- P : +1
-data BFactor = N | Z | P
+newtype BFactor = BFactor Int -- N | Z | P
   deriving Show
 
-data Map k a = Nil | Node !k a !BFactor (Map k a) (Map k a)
+pattern N = BFactor (-1)
+pattern Z = BFactor 0
+pattern P = BFactor 1
+
+data Map k a = Nil | Node !k a {-# UNPACK #-} !BFactor !(Map k a) !(Map k a)
   deriving Show
 
 empty :: Map k a
