@@ -42,7 +42,7 @@ singleton k x = Node k x Z Nil Nil
 type Cont k a = Bool -> Map k a -> Map k a
 
 insert :: forall k a. Ord k => k -> a -> Map k a -> Map k a
-insert k' x' = \n -> case n of
+insert k' x' n = case n of
   Nil -> singleton k' x'
   Node k x f l r -> case compare k' k of
     LT -> case f of
@@ -71,31 +71,31 @@ insert k' x' = \n -> case n of
     
     {-# INLINE shorterLeft #-}
     shorterLeft :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    shorterLeft k x l r cont = cont False $ shorterLeft' k x l r
+    shorterLeft k x l r cont = cont False $! shorterLeft' k x l r
     
     {-# INLINE shorterRight #-}
     shorterRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    shorterRight k x l r cont = cont False $ shorterRight' k x l r
+    shorterRight k x l r cont = cont False $! shorterRight' k x l r
     
     {-# INLINE neitherLeft #-}
     neitherLeft :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    neitherLeft k x l r cont = insert' l $ \p l' -> cont p $ case p of
+    neitherLeft k x l r cont = insert' l $ \p l' -> cont p $! case p of
       True  -> Node k x N l' r
       False -> Node k x Z l' r
     
     {-# INLINE neitherRight #-}
     neitherRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    neitherRight k x l r cont = insert' r $ \p r' -> cont p $ case p of
+    neitherRight k x l r cont = insert' r $ \p r' -> cont p $! case p of
       True  -> Node k x P l r'
       False -> Node k x Z l r'
     
     {-# INLINE longerLeft #-}
     longerLeft  :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    longerLeft k x l r cont = cont False $ longerLeft' k x l r
+    longerLeft k x l r cont = cont False $! longerLeft' k x l r
     
     {-# INLINE longerRight #-}
     longerRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    longerRight k x l r cont = cont False $ longerRight' k x l r
+    longerRight k x l r cont = cont False $! longerRight' k x l r
     
     {-# INLINE shorterLeft' #-}
     shorterLeft' :: k -> a -> Map k a -> Map k a -> Map k a
