@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns    #-}
 
 module Data.AVL where
 
@@ -9,15 +10,28 @@ import Prelude hiding (lookup)
 -- N : -1
 -- Z :  0
 -- P : +1
-newtype BFactor = BFactor Int -- N | Z | P
+data BFactor = N | Z | P
   deriving Show
 
-pattern N = BFactor (-1)
-pattern Z = BFactor 0
-pattern P = BFactor 1
-
-data Map k a = Nil | Node !k a {-# UNPACK #-} !BFactor !(Map k a) !(Map k a)
+data Map k a = Nil
+             | NodeN !k a !(Map k a) !(Map k a)
+             | NodeZ !k a !(Map k a) !(Map k a)
+             | NodeP !k a !(Map k a) !(Map k a)
   deriving Show
+
+{-# INLINE view #-}
+view :: Map k a -> Maybe (k, a, BFactor, Map k a, Map k a)
+view Nil = Nothing
+view (NodeN k x l r) = Just (k, x, N, l, r)
+view (NodeZ k x l r) = Just (k, x, Z, l, r)
+view (NodeP k x l r) = Just (k, x, P, l, r)
+
+pattern Node :: k -> a -> BFactor -> Map k a -> Map k a -> Map k a
+pattern Node k x f l r <- (view -> Just (k, x, f, l, r))
+  where
+    Node k x N l r = NodeN k x l r
+    Node k x Z l r = NodeZ k x l r
+    Node k x P l r = NodeP k x l r
 
 empty :: Map k a
 empty = Nil
