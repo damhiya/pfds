@@ -1,10 +1,13 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE UnboxedTuples        #-}
 
 module Data.AVL where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, null)
+import Control.Exception (assert)
 
 -- | Balance factor.
 -- N : -1
@@ -26,6 +29,7 @@ view (NodeN k x l r) = Just (k, x, N, l, r)
 view (NodeZ k x l r) = Just (k, x, Z, l, r)
 view (NodeP k x l r) = Just (k, x, P, l, r)
 
+{-# COMPLETE Nil, Node #-}
 pattern Node :: k -> a -> BFactor -> Map k a -> Map k a -> Map k a
 pattern Node k x f l r <- (view -> Just (k, x, f, l, r))
   where
@@ -36,18 +40,17 @@ pattern Node k x f l r <- (view -> Just (k, x, f, l, r))
 empty :: Map k a
 empty = Nil
 
+{-# INLINE singleton #-}
 singleton :: k -> a -> Map k a
 singleton k x = Node k x Z Nil Nil
 
-type Cont k a = Bool -> Map k a -> Map k a
-
 insert :: forall k a. Ord k => k -> a -> Map k a -> Map k a
-insert k' x' n = case n of
+insert k' x' = \n -> case n of
   Nil -> singleton k' x'
   Node k x f l r -> case compare k' k of
     LT -> case f of
       N -> longerLeft'  k x l r
-      Z -> neitherLeft' k x l r 
+      Z -> neitherLeft' k x l r
       P -> shorterLeft' k x l r
     EQ -> Node k' x' f l r
     GT -> case f of
@@ -55,69 +58,69 @@ insert k' x' n = case n of
       Z -> neitherRight' k x l r
       P -> longerRight'  k x l r
   where
-    insert' :: Map k a -> Cont k a -> Map k a
-    insert' n cont = case n of
-      Nil -> cont True (singleton k' x')
+    insert' :: Map k a -> (# Bool, Map k a #)
+    insert' n = case n of
+      Nil -> (# True, #) $! singleton k' x'
       Node k x f l r -> case compare k' k of
         LT -> case f of
-          N -> longerLeft  k x l r cont
-          Z -> neitherLeft k x l r cont
-          P -> shorterLeft k x l r cont
-        EQ -> cont False (Node k' x' f l r)
+          N -> longerLeft  k x l r
+          Z -> neitherLeft k x l r
+          P -> shorterLeft k x l r
+        EQ -> (# False, #) $! Node k' x' f l r 
         GT -> case f of
-          N -> shorterRight k x l r cont
-          Z -> neitherRight k x l r cont
-          P -> longerRight  k x l r cont
-    
+          N -> shorterRight k x l r
+          Z -> neitherRight k x l r
+          P -> longerRight  k x l r
+
     {-# INLINE shorterLeft #-}
-    shorterLeft :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    shorterLeft k x l r cont = cont False $! shorterLeft' k x l r
-    
+    shorterLeft :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    shorterLeft k x l r = (# False, #) $! shorterLeft' k x l r
+
     {-# INLINE shorterRight #-}
-    shorterRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    shorterRight k x l r cont = cont False $! shorterRight' k x l r
-    
+    shorterRight :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    shorterRight k x l r = (# False, #) $! shorterRight' k x l r
+
     {-# INLINE neitherLeft #-}
-    neitherLeft :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    neitherLeft k x l r cont = insert' l $ \p l' -> cont p $! case p of
-      True  -> Node k x N l' r
-      False -> Node k x Z l' r
-    
+    neitherLeft :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    neitherLeft k x l r = let (# p, l' #) = insert' l in case p of
+      True  -> (# True,  #) $! Node k x N l' r
+      False -> (# False, #) $! Node k x Z l' r
+
     {-# INLINE neitherRight #-}
-    neitherRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    neitherRight k x l r cont = insert' r $ \p r' -> cont p $! case p of
-      True  -> Node k x P l r'
-      False -> Node k x Z l r'
-    
+    neitherRight :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    neitherRight k x l r = let (# p, r' #) = insert' r in case p of
+      True  -> (# True,  #) $! Node k x P l r'
+      False -> (# False, #) $! Node k x Z l r'
+
     {-# INLINE longerLeft #-}
-    longerLeft  :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    longerLeft k x l r cont = cont False $! longerLeft' k x l r
-    
+    longerLeft :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    longerLeft k x l r = (# False, #) $! longerLeft' k x l r
+
     {-# INLINE longerRight #-}
-    longerRight :: k -> a -> Map k a -> Map k a -> Cont k a -> Map k a
-    longerRight k x l r cont = cont False $! longerRight' k x l r
-    
+    longerRight :: k -> a -> Map k a -> Map k a -> (# Bool, Map k a #)
+    longerRight k x l r = (# False, #) $! longerRight' k x l r
+
     {-# INLINE shorterLeft' #-}
     shorterLeft' :: k -> a -> Map k a -> Map k a -> Map k a
-    shorterLeft' k x l r = insert' l $ \p l' -> case p of
+    shorterLeft' k x l r = let (# p, l' #) = insert' l in case p of
       True  -> Node k x Z l' r
       False -> Node k x P l' r
-    
+
     {-# INLINE shorterRight' #-}
     shorterRight' :: k -> a -> Map k a -> Map k a -> Map k a
-    shorterRight' k x l r = insert' r $ \p r' -> case p of
+    shorterRight' k x l r = let (# p, r' #) = insert' r in case p of
       True  -> Node k x Z l r'
       False -> Node k x N l r'
-    
+
     {-# INLINE neitherLeft' #-}
     neitherLeft' :: k -> a -> Map k a -> Map k a -> Map k a
-    neitherLeft' k x l r = insert' l $ \p l' -> case p of
+    neitherLeft' k x l r = let (# p, l' #) = insert' l in case p of
       True  -> Node k x N l' r
       False -> Node k x Z l' r
 
     {-# INLINE neitherRight' #-}
     neitherRight' :: k -> a -> Map k a -> Map k a -> Map k a
-    neitherRight' k x l r = insert' r $ \p r' -> case p of
+    neitherRight' k x l r = let (# p, r' #) = insert' r in case p of
       True  -> Node k x P l r'
       False -> Node k x Z l r'
 
@@ -131,7 +134,7 @@ insert k' x' n = case n of
             n' = Node k x N l' r
             l' = longerLeft' lk lx ll lr
           -- longer left - neither left (rotate right)
-          Z -> insert' ll $ \p ll' -> case p of
+          Z -> let (# p, ll' #) = insert' ll in case p of
               True  -> l' where
                 l' = Node lk lx Z ll' n'
                 n' = Node  k  x Z lr  r
@@ -155,8 +158,8 @@ insert k' x' n = case n of
             --  longer left - neither right @ Nil (rotate left-right)
             Nil -> lr' where
               lr' = Node  k'  x' Z   l'   n'
-              l'  = Node lk  lx  Z  ll  Nil  -- ll is Nil
-              n'  = Node  k   x  Z Nil    r  -- r  is Nil
+              l'  = assert (null ll) Node lk  lx  Z  ll  Nil  -- ll is Nil
+              n'  = assert (null r ) Node  k   x  Z Nil    r  -- r  is Nil
             Node lrk lrx lrf lrl lrr -> case compare k' lrk of
               LT -> case lrf of
                 -- longer left - neither right - longer left
@@ -165,7 +168,7 @@ insert k' x' n = case n of
                   l'  = Node lk lx Z ll lr'
                   lr' = longerLeft' lrk lrx lrl lrr
                 -- longer left - neither right - neither left (rotate left-right)
-                Z -> insert' lrl $ \p lrl' -> case p of
+                Z -> let (# p, lrl' #) = insert' lrl in case p of
                     True  -> lr' where
                       lr' = Node lrk lrx Z   l'   n'
                       l'  = Node  lk  lx Z  ll  lrl'
@@ -190,7 +193,7 @@ insert k' x' n = case n of
                   l'  = Node lk lx Z ll lr'
                   lr' = shorterRight' lrk lrx lrl lrr
                 -- longer left - neither right - neither right (rotate left-right)
-                Z -> insert' lrr $ \p lrr' -> case p of
+                Z -> let (# p, lrr' #) = insert' lrr in case p of
                     True  -> lr' where
                       lr' = Node lrk lrx Z   l'   n'
                       l'  = Node  lk  lx N  ll  lrl
@@ -208,7 +211,7 @@ insert k' x' n = case n of
           P -> n' where
             n' = Node k x N l' r
             l' = longerRight' lk lx ll lr
-    
+
     longerRight' :: k -> a -> Map k a -> Map k a -> Map k a
     longerRight' k x l r = case r of
       Nil -> error "AVL.insert: f == P && r == Nil"
@@ -223,8 +226,8 @@ insert k' x' n = case n of
             -- longer right - neither left @ Nil (rotate right-left)
             Nil -> rl' where
               rl' = Node  k'  x' Z   n'   r'
-              n'  = Node  k   x  Z   l  Nil  -- l is Nil
-              r'  = Node rk  rx  Z Nil   rr  -- rr is Nil
+              n'  = assert (null l ) Node  k   x  Z   l  Nil  -- l is Nil
+              r'  = assert (null rr) Node rk  rx  Z Nil   rr  -- rr is Nil
             Node rlk rlx rlf rll rlr -> case compare k' rlk of
               LT -> case rlf of
                 -- longer right - neither left - longer left
@@ -233,7 +236,7 @@ insert k' x' n = case n of
                   r'  = Node rk rx Z rl' rr
                   rl' = longerLeft' rlk rlx rll rlr
                 -- longer right - neither left - neither left (rotate right-left)
-                Z -> insert' rll $ \p rll' -> case p of
+                Z -> let (# p, rll' #) = insert' rll in case p of
                     True  -> rl' where
                       rl' = Node rlk rlx Z   n'   r'
                       n'  = Node   k   x Z   l  rll'
@@ -258,7 +261,7 @@ insert k' x' n = case n of
                   r'  = Node rk rx Z rl' rr
                   rl' = shorterRight' rlk rlx rll rlr
                 -- longer right - neither left - neither right (rotate right-left)
-                Z -> insert' rlr $ \p rlr' -> case p of
+                Z -> let (# p, rlr' #) = insert' rlr in case p of
                     True  -> rl' where
                       rl' = Node rlk rlx Z   n'   r'
                       n'  = Node   k   x N   l  rll
@@ -285,7 +288,7 @@ insert k' x' n = case n of
             n' = Node k x P l r'
             r' = shorterRight' rk rx rl rr
           -- longer right - neither right (rotate left)
-          Z -> insert' rr $ \p rr' -> case p of
+          Z -> let (# p, rr' #) = insert' rr in case p of
               True  -> r' where
                 r' = Node rk rx Z n' rr'
                 n' = Node  k  x Z l  rl
@@ -297,8 +300,7 @@ insert k' x' n = case n of
             n' = Node k x P l r'
             r' = longerRight' rk rx rl rr
 
-
-
+{-# INLINE null #-}
 null :: Map k a -> Bool
 null Nil = True
 null _   = False
