@@ -59,7 +59,7 @@ insert k' x' = \n -> case n of
       P -> longerRight'  k x l r
   where
     insert' :: Map k a -> (# Bool, Map k a #)
-    insert' n = case n of
+    insert' = \n -> case n of
       Nil -> (# True, #) $! singleton k' x'
       Node k x f l r -> case compare k' k of
         LT -> case f of
@@ -158,8 +158,8 @@ insert k' x' = \n -> case n of
             --  longer left - neither right @ Nil (rotate left-right)
             Nil -> lr' where
               lr' = Node  k'  x' Z   l'   n'
-              l'  = assert (null ll) Node lk  lx  Z  ll  Nil  -- ll is Nil
-              n'  = assert (null r ) Node  k   x  Z Nil    r  -- r  is Nil
+              l'  = assert (null ll) $ Node lk  lx  Z  ll  Nil  -- ll is Nil
+              n'  = assert (null  r) $ Node  k   x  Z Nil    r  -- r  is Nil
             Node lrk lrx lrf lrl lrr -> case compare k' lrk of
               LT -> case lrf of
                 -- longer left - neither right - longer left
@@ -226,8 +226,8 @@ insert k' x' = \n -> case n of
             -- longer right - neither left @ Nil (rotate right-left)
             Nil -> rl' where
               rl' = Node  k'  x' Z   n'   r'
-              n'  = assert (null l ) Node  k   x  Z   l  Nil  -- l is Nil
-              r'  = assert (null rr) Node rk  rx  Z Nil   rr  -- rr is Nil
+              n'  = assert (null  l) $ Node  k   x  Z   l  Nil  -- l is Nil
+              r'  = assert (null rr) $ Node rk  rx  Z Nil   rr  -- rr is Nil
             Node rlk rlx rlf rll rlr -> case compare k' rlk of
               LT -> case rlf of
                 -- longer right - neither left - longer left
@@ -299,6 +299,156 @@ insert k' x' = \n -> case n of
           P -> n' where
             n' = Node k x P l r'
             r' = longerRight' rk rx rl rr
+
+delete :: forall k a. Ord k => k -> Map k a -> Map k a
+delete k' = \n -> snd $ delete' n
+  where
+    delete' :: Map k a -> (Bool, Map k a)
+    delete' = \n -> case n of
+      Nil -> (False, Nil)
+      Node k x f l r -> case compare k' k of
+        LT -> case f of
+          N -> longerLeft'  k x l r
+          Z -> neitherLeft' k x l r
+          P -> shorterLeft' k x l r
+        EQ -> case f of
+          N -> case popFirst r of
+            Nothing -> (True, l)
+            Just (p, fk, fx, r_) -> rotateAfterShorterRight (,) p fk fx l r_
+          Z -> case popFirst r of
+            Nothing -> assert (null l) $ (False, l) -- l is Nil
+            Just (p, fk, fx, r_) -> case p of
+              True  -> (False, Node fk fx N l r_)
+              False -> (False, Node fk fx Z l r_)
+          P -> case popFirst r of
+            Nothing -> error "AVL.delete: f == P && popFirst r == Nothing"
+            Just (p, fk, fx, r_) -> case p of
+              True  -> (True,  Node fk fx Z l r_)
+              False -> (False, Node fk fx P l r_)
+        GT -> case f of
+          N -> shorterRight' k x l r
+          Z -> neitherRight' k x l r
+          P -> longerRight'  k x l r
+
+    popFirst :: Map k a -> Maybe (Bool, k, a, Map k a)
+    popFirst = \n -> case n of
+      Nil -> Nothing
+      Node k x f l r -> case f of
+        -- longer left
+        N -> case popFirst l of
+          Nothing -> error "AVL.delete: f == N && popFirst l == Nothing"
+          Just (p, fk, fx, l') -> case p of
+            True  -> Just (True, fk, fx, n') where
+              n' = Node k x Z l' r
+            False -> Just (False, fk, fx, n') where
+              n' = Node k x N l' r
+        -- neither left
+        Z -> case popFirst l of
+          Nothing -> assert (null r) $ Just (True, k, x, r)  -- r is Nil
+          Just (p, fk, fx, l') -> case p of
+            True  -> Just (False, fk, fx, n') where
+              n' = Node k x P l' r
+            False -> Just (False, fk, fx, n') where
+              n' = Node k x Z l' r
+        -- shorter left
+        P -> case popFirst l of
+          Nothing -> Just (True, k, x, r)
+          Just (p, fk, fx, l_) -> Just $
+            rotateAfterShorterLeft (\x y -> (x, fk, fx, y)) p k x l_ r
+
+    rotateAfterShorterLeft :: forall r. (Bool -> Map k a -> r) ->
+                              Bool -> k -> a -> Map k a -> Map k a -> r
+    rotateAfterShorterLeft cont p k x l_ r = case p of
+      True  -> case r of
+        Nil -> error "AVL.delete: f == P && r == Nil"
+        Node rk rx rf rl rr -> case rf of
+          -- rotate right-left
+          N -> case rl of
+            Nil -> error "AVL.delete: rf == N && rl == Nil"
+            Node rlk rlx rlf rll rlr -> case rlf of
+              N -> cont True n' where
+                n' = Node rlk rlx Z   l'   r'
+                l' = Node   k   x Z   l_ rll
+                r' = Node  rk  rx P rlr   rr
+              Z -> cont True n' where
+                n' = Node rlk rlx Z   l'   r'
+                l' = Node   k   x Z   l_ rll
+                r' = Node  rk  rx Z rlr   rr
+              P -> cont True n' where
+                n' = Node rlk rlx Z   l'   r'
+                l' = Node   k   x N   l_ rll
+                r' = Node  rk  rx Z rlr   rr
+          -- rotate left
+          Z -> cont False n' where
+            n' = Node rk rx N l' rr
+            l' = Node  k  x P l_  rl
+          -- rotate left
+          P -> cont True n' where
+            n' = Node rk rx Z l' rr
+            l' = Node  k  x Z l_  rl
+      False -> cont False n' where
+        n' = Node k x P l_ r
+
+    rotateAfterShorterRight :: forall r. (Bool -> Map k a -> r) ->
+                               Bool -> k -> a -> Map k a -> Map k a -> r
+    rotateAfterShorterRight cont p k x l r_ = case p of
+      True  -> case l of
+        Nil -> error "AVL.delete: f == N && l == Nil"
+        Node lk lx lf ll lr -> case lf of
+          -- rotate right
+          N -> cont True n' where
+            n' = Node lk lx N ll r'
+            r' = Node  k  x N lr r_
+          -- rotate right
+          Z -> cont False n' where
+            n' = Node lk lx P ll r'
+            r' = Node  k  x N ll r_
+          -- rotate left-right
+          P -> case lr of
+            Nil -> error "AVL.delete: lf == P && lr == Nil"
+            Node lrk lrx lrf lrl lrr -> case lrf of
+              N -> cont True n' where
+                n' = Node lrk lrx Z   l'  r'
+                l' = Node  lk  lx Z  ll lrl
+                r' = Node   k   x P lrr   r_
+              Z -> cont True n' where
+                n' = Node lrk lrx Z   l'  r'
+                l' = Node  lk  lx Z  ll lrl
+                r' = Node   k   x Z lrr   r_
+              P -> cont True n' where
+                n' = Node lrk lrx Z   l'  r'
+                l' = Node  lk  lx N  ll lrl
+                r' = Node   k   x Z lrr   r_
+      False -> cont False n' where
+        n' = Node k x N l r_
+
+    shorterLeft' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    shorterLeft' k x l r = let (p, l_) = delete' l in
+      rotateAfterShorterLeft (,) p k x l_ r
+
+    shorterRight' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    shorterRight' k x l r = let (p, r_) = delete' r in
+      rotateAfterShorterRight (,) p k x l r_
+
+    neitherLeft' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    neitherLeft' k x l r = let (p, l_) = delete' l in case p of
+      True  -> (False, Node k x P l_ r)
+      False -> (False, Node k x Z l_ r)
+
+    neitherRight' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    neitherRight' k x l r = let (p, r_) = delete' r in case p of
+      True  -> (False, Node k x N l r_)
+      False -> (False, Node k x Z l r_)
+
+    longerLeft' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    longerLeft' k x l r = let (p, l_) = delete' l in case p of
+      True  -> (True,  Node k x Z l_ r)
+      False -> (False, Node k x N l_ r)
+
+    longerRight' :: k -> a -> Map k a -> Map k a -> (Bool, Map k a)
+    longerRight' k x l r = let (p, r_) = delete' r in case p of
+      True  -> (True,  Node k x Z l r_)
+      False -> (False, Node k x P l r_)
 
 {-# INLINE null #-}
 null :: Map k a -> Bool
